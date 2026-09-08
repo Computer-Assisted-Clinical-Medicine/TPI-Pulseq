@@ -45,7 +45,7 @@ trajectory of Boada et al. (1997).
 
 ## Running without the GUI
 
-`TPI_compile_headless.m` sets every parameter that `TPI_UI.m` would
+`TPI_compiler.m` sets every parameter that `TPI_UI.m` would
 normally collect through the interface and calls `tpi_compile_advanced.m`
 directly. Use this for:
 - machines without a display (remote/cluster jobs),
