@@ -95,7 +95,6 @@ FOR A PARTICULAR PURPOSE. See the [GNU General Public License](https://www.gnu.o
 for more details.
 
 **Note on dependencies:** [Pulseq](https://github.com/pulseq/pulseq) is
-licensed under MIT and [BSReconFramework](https://github.com/IMTtugraz/BSReconFramework)
-is licensed under MIT, both of which are compatible with GPL-3.0. Any
+licensed under MIT, which is compatible with GPL-3.0. Any
 derivative works that incorporate or modify code from this repository must
 also be released under GPL-3.0.
