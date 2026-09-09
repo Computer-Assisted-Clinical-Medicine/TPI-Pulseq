@@ -142,7 +142,7 @@ btnSave.ButtonPushedFcn = @(src, evt) onSave();
         grid(axSeq, 'on'); box(axSeq, 'on');
         xlabel(axSeq, 'time [ms]'); ylabel(axSeq, 'Gradient [Hz/m]');
         legend(axSeq, labels, 'Location', 'best');
-        title(axSeq, sprintf('One TR (TR = %.1f ms)', prm.TR*1e3));
+        title(axSeq, sprintf('Gradient Waveforms', prm.TR*1e3));
 
         t_last_grad = 0;
         for ch = 1:3
@@ -177,7 +177,7 @@ btnSave.ButtonPushedFcn = @(src, evt) onSave();
             'S_{analytical} (Boada Eq.11)', 'Compiled cones (vector)', 'Compiled cones (per-axis)'}, 'Location', 'best');
         xlabel(axSlew, 'Cone polar angle \theta_0 [deg]');
         ylabel(axSlew, 'Peak slew rate [T/m/s]');
-        title(axSlew, 'Slew rate vs. angle: full theoretical sweep (1 deg) with compiled cones marked');
+        title(axSlew, 'Slew rate vs. cone angle');
         grid(axSlew, 'on'); box(axSlew, 'on');
         hold(axSlew, 'off');
 
