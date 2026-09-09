@@ -89,15 +89,35 @@ dphi_dt = sqrt(max(0, (gamma*G_amp)^2 - dkdt.^2)) ./ (k_t .* sin_theta_eff);
 
 % Optional raised-cosine taper of the Phase 1/2 angular-velocity onset,
 % independent of ramp_mode/ramp_stretch (which govern only |G|).
+% --- Optional: smooth Phase 1 -> Phase 2 transition (radial AND angular) ---
 switch transition_mode
     case 'none'
-        % dphi_dt unchanged: hard onset at the Phase 2 boundary
+        % ORIGINAL BEHAVIOR: hard onset in both dkdt and dphi_dt
     case 'taper'
         n_onset_linear = ceil(G_amp_Hz / sys.maxSlew / dt) * 2;
         n_onset = min(n_twist, max(1, ceil(n_onset_linear * transition_stretch)));
         tau_on  = linspace(0, 1, n_onset);
         taper   = ones(1, n_twist);
-        taper(1:n_onset) = (1 - cos(pi * tau_on)) / 2;
+        taper(1:n_onset) = (1 - cos(pi * tau_on)) / 2;   % raised-cosine 0 -> 1
+
+        % --- Radial-rate smoothing: blend dkdt from the Phase 1 flat value
+        %     (gamma*G_amp, zero curvature) into the Boada analytical curve,
+        %     using the SAME window as the angular taper below. This removes
+        %     the second-derivative kink in dk/dt (and hence in Gz) at the
+        %     Phase 1/2 boundary, matching the smoothing already applied
+        %     in-plane.
+        dkdt_flat_val = gamma * G_amp;                 % Phase-1 constant rate
+        dkdt = dkdt_flat_val + (dkdt - dkdt_flat_val) .* taper;
+
+        % Re-integrate k_t from the SMOOTHED dkdt (closed-form Eq.[4] is no
+        % longer valid once dkdt is modified). Anchor at k0_actual, use
+        % cumulative trapezoidal integration on the bin-center grid.
+        dk_cum = cumtrapz_bincenter(dkdt, dt);          % helper, see below
+        k_t = k0_actual + dk_cum;
+
+        % Angular-rate smoothing, now using the self-consistent smoothed
+        % dkdt/k_t pair (previously this used the unsmoothed analytical ones)
+        dphi_dt = sqrt(max(0, (gamma*G_amp)^2 - dkdt.^2)) ./ (k_t .* sin_theta_eff);
         dphi_dt = dphi_dt .* taper;
     otherwise
         error('design_tpi_projection: unknown transition_mode "%s" (use ''none'' or ''taper'')', transition_mode);
@@ -208,4 +228,10 @@ catch ME
     end
 end
 
+end
+
+function k_cum = cumtrapz_bincenter(dkdt, dt)
+% Cumulative trapezoidal integral of dkdt sampled at bin centers,
+% returning the k-increment accumulated up to (and including) each bin.
+k_cum = cumsum(dkdt) * dt - dkdt(1) * dt / 2;   % half-bin correction
 end
