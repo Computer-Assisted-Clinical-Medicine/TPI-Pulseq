@@ -43,6 +43,10 @@ trajectory of Boada et al. (1997).
    trajectory via `nufft_3d` and applies density compensation.
    NOTE: Be sure `nufft_3d` is on the path.
 
+> ⚠️ **Safety notice:** Always verify SAR, gradient amplitude, slew rate, and
+> duty cycle limits on your specific scanner before executing any sequence on
+> hardware. This code is provided "as is" without warranty of any kind.
+
 ## Running without the GUI
 
 `TPI_compiler.m` sets every parameter that `TPI_UI.m` would
@@ -80,6 +84,8 @@ Twisted Projection Imaging (TPI) implementation with Anatomically
 Guided Reconstruction (AGR). In: Proceedings of the 2026 ISMRM Workshop
 on Beyond Protons: Challenges and Advances in X-Nuclei MR, Barcelona,
 Spain.
+
+> **Note:** the undersampling factors published in the abstract will not apply to the current compiler version.
 
 ## License
 
