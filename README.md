@@ -72,6 +72,14 @@ to an `output/` folder. All `prm` fields match those documented in
 | `avoid_equator` | Excludes the exact equatorial ring (theta = 90 deg, odd NR) |
 | `undersample_factor` | Additional ring/spoke undersampling beyond Nyquist |
 
+## Add a new nuclei or scanner
+Go to tpi_compile_advanced.m and you can find the following section right at the top. Just use your hardware limits to define a new 
+scanner or add a new nuclei with the corresponding gyromagnetic ratio. The safty margin allows you to define how much of the potential 
+hardware limit you want to work with.
+<p align="center">
+  <img src="images/ScannerNucleiSetup.png" width="800" alt="Scanner and Nulcei definition">
+</p>
+
 ## Reference
 
 Boada FE, Gillen JS, Shen GX, Chang SY, Thulborn KR. Fast three
