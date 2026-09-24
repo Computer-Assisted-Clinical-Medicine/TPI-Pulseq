@@ -41,7 +41,7 @@ switch prm.scanner
         sys = mr.opts('B0', 3, 'MaxGrad', 45*safety_margin, 'GradUnit', 'mT/m', ...
             'MaxSlew', 200*safety_margin, 'SlewUnit', 'T/m/s', ...
             'rfRingdownTime', 10e-6, 'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6, 'gamma', gamma);
-        rf_dur = 300e-6; sys.rfRingdownTime = 270e-6;
+        rf_dur = 300e-6; sys.rfRingdownTime = 270e-6; %found for our coil setup, please adapt
     case 'Trio'
         sys = mr.opts('B0', 3, 'MaxGrad', 40*safety_margin, 'GradUnit', 'mT/m', ...
             'MaxSlew', 200*safety_margin, 'SlewUnit', 'T/m/s', ...
@@ -166,10 +166,10 @@ log{end+1} = sprintf('Example spoke theta = %.1f deg | S_max constructed = %.1f 
     rad2deg(theta_test), wfm_test.S_max_constructed, wfm_test.S_max_per_axis);
 
 %% ---- ADC design ----
-adc_dur = mr.calcDuration(gx_test);
+adc_dur = T_read;                      % NOT mr.calcDuration(gx_test)
 dwell_nyquist = 1 / (2 * gamma * G_amp * fov);
-num_samples   = round(adc_dur / dwell_nyquist * ro_os);
-num_samples   = num_samples + mod(num_samples, 2);
+num_samples = round(adc_dur / dwell_nyquist * ro_os);
+num_samples = num_samples - mod(num_samples, sys.adcSamplesDivisor);  % respect divisor, not just even
 
 adc = mr.makeAdc(num_samples, 'Duration', adc_dur, 'Delay', sys.adcDeadTime, 'system', sys);
 block_dur_ref = mr.calcDuration(gx_test, adc);
@@ -260,6 +260,18 @@ end
 
 %% ---- k-space trajectory (for plotting) ----
 [ktraj_adc, t_adc, ktraj, t_ktraj] = seq.calculateKspacePP();
+
+seq.setDefinition('FOV', [fov fov fov]);
+seq.setDefinition('Name', sprintf('TPI_%s', prm.nuclei));
+seq.setDefinition('p', p_twist);
+seq.setDefinition('NR', NR);
+seq.setDefinition('N_total', n_proj);      % actual compiled count, not N_total_full
+seq.setDefinition('kmax', kmax);
+seq.setDefinition('G_amp', G_amp);
+seq.setDefinition('T_read', T_read);
+seq.setDefinition('Nx', Nx);               
+seq.setDefinition('N_adc', num_samples);
+seq.setDefinition('ro_os', ro_os);
 
 out = struct('seq', seq, 'sys', sys, 'gamma', gamma, 'kmax', kmax, 'k0', k0, ...
     'G_amp', G_amp, 'T_read', T_read, 'S_max_required', S_max_required, ...

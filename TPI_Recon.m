@@ -32,8 +32,8 @@ repo_root = fileparts(mfilename('fullpath'));
 addpath(fullfile(repo_root, 'UI'));
 
 % data_dir = fullfile(pwd);
-data_dir = repo_root;
-seqname  = 'TPI_240mm_5mm_p04_2874projs_s08_TE1';   % base name (no extension)
+data_dir = fullfile(repo_root,'ExampleData');
+seqname  = 'TPI_240fov_2_5mm_p045_us3_TE1_smooth33';   % base name (no extension)
 
 seqpath  = fullfile(data_dir, [seqname '.seq']);
 datapath = fullfile(data_dir, [seqname '.dat']);
@@ -46,6 +46,8 @@ datapath = fullfile(data_dir, [seqname '.dat']);
 %   t_ktraj    [1 x N_grad_total] - time stamps on gradient raster [s]
 % N_adc_total = N_adc (samples/projection) x N_total (projections)
 
+prevWarnState = warning('off', 'mr:restoreShape');
+
 fprintf('Loading sequence file ... ');
 seq = mr.Sequence();
 seq.read(seqpath);
@@ -55,34 +57,40 @@ fprintf('Computing k-space trajectory ... ');
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation] = seq.calculateKspacePP();
 fprintf('done\n');
 
+warning(prevWarnState);   % restore whatever the warning state was before
+
 kmax_meas = max(abs(ktraj_adc), [], 'all');   % [1/m], sanity check vs. stored kmax
 
 %% ---- Section 3: Extract Sequence Parameters from .seq Definitions ----
-% tpi_compile_advanced.m stores: 'FOV','Name','p','NR','N_total','kmax',
-% 'G_amp','T_read' via seq.setDefinition(). Nx / N_adc / ro_os are not yet
-% persisted, so they are derived below from the trajectory and kept
-% consistent with the compiler's k-space convention.
-
+% Requires tpi_compile_advanced.m to persist the following via
+% seq.setDefinition(): 'FOV','Name','p','NR','N_total','kmax','G_amp',
+% 'T_read','Nx','N_adc','ro_os'. No fallbacks are applied here - if a
+% definition is missing, fix the compiler rather than patching the recon.
 fprintf('Reading sequence definitions ... ');
+
+required_defs = {'FOV','p','kmax','G_amp','T_read','N_total','NR','Nx','N_adc','ro_os'};
+for i = 1:numel(required_defs)
+    if isempty(seq.getDefinition(required_defs{i}))
+        error(['TPI_Recon: required definition ''%s'' is missing from the .seq file.\n' ...
+               'Update tpi_compile_advanced.m to call seq.setDefinition(''%s'', ...) before seq.write().'], ...
+              required_defs{i}, required_defs{i});
+    end
+end
 
 fov_vec = seq.getDefinition('FOV');
 fov     = fov_vec(1);                       % isotropic FOV -> take first element
-
 p       = seq.getDefinition('p');           % twist onset fraction (k0 = p*kmax)
 kmax    = seq.getDefinition('kmax');        % max k-space radius [1/m]
 G_amp   = seq.getDefinition('G_amp');       % gradient amplitude [T/m]
 T_read  = seq.getDefinition('T_read');      % readout duration [s]
 N_total = seq.getDefinition('N_total');     % total number of projections
 NR      = seq.getDefinition('NR');          % number of cones
+Nx      = seq.getDefinition('Nx');          % matrix size
+N_adc   = seq.getDefinition('N_adc');       % samples per projection
+ro_os   = seq.getDefinition('ro_os');       % readout oversampling factor
 
-% TODO: persist Nx/N_adc/ro_os in the compiler and replace these derivations
-% with getDefinition() calls once available.
-Nx    = round(2 * kmax * fov);              % deltak=1/fov, kmax=Nx*deltak/2 -> Nx=2*kmax*fov
-ro_os = 1.5;                                % readout oversampling (matches compiler default)
-N_adc = size(ktraj_adc, 2) / N_total;       % samples per projection, from trajectory
-
-kspace_size = Nx;                           % isotropic reconstruction grid size
-navg        = 1;                            % placeholder, re-derived from data in Section 7
+kspace_size = Nx;    % isotropic reconstruction grid size
+navg        = 1;     % placeholder, re-derived from data in Section 7
 
 fprintf('done\n');
 fprintf('  FOV       = %.0f mm\n',    fov*1e3);
@@ -93,13 +101,13 @@ fprintf('  p         = %.2f\n',       p);
 fprintf('  N_total   = %d projections\n', N_total);
 fprintf('  NR        = %d cones\n',   NR);
 fprintf('  N_adc     = %d samples/projection\n', N_adc);
+fprintf('  ro_os     = %.2f\n',       ro_os);
 fprintf('  T_read    = %.3f ms\n',    T_read*1e3);
 
 if abs(kmax_meas - kmax) / kmax > 0.01
     warning('kmax from trajectory (%.1f) deviates >1%% from stored kmax (%.1f) [1/m]', ...
         kmax_meas, kmax);
 end
-
 %% ---- Section 4: Load Raw Siemens Data (mapVBVD) ----
 % mapVBVD returns a twix object; multi-RAID files return a cell array
 % whose last element is the imaging scan.
@@ -124,8 +132,6 @@ fprintf('done\n');
 fprintf('  Raw data size: [%s]\n', num2str(size(data_unsorted)));   % expect [N_adc_total, n_coils, N_total*navg]
 
 %% ---- Section 5: Coil Combination ----
-% my_coilcombine2(data, coil_dim) should implement an SNR-optimal
-% combination (e.g. matched filter from a noise pre-scan).
 
 n_coils = size(data_unsorted, 2);
 fprintf('Detected coils: %d\n', n_coils);
@@ -133,8 +139,7 @@ fprintf('Detected coils: %d\n', n_coils);
 if n_coils > 1
     fprintf('Coil combination ... ');
     data_unsorted = my_coilcombine2(data_unsorted, 2);
-    % Alternative (no noise pre-scan): sum-of-squares
-    %   data_unsorted = sqrt(sum(abs(data_unsorted).^2, 2));
+
     fprintf('done\n');
 end
 % After combination: data_unsorted is [N_adc_total, 1, N_total*navg]
@@ -152,8 +157,8 @@ hold on;
 plot(t_ktraj, ktraj(1, :), 'r', 'DisplayName', 'kx');
 plot(t_ktraj, ktraj(2, :), 'g', 'DisplayName', 'ky');
 plot(t_ktraj, ktraj(3, :), 'b', 'DisplayName', 'kz');
-plot(t_adc, ktraj_adc(3, :), 'b.', 'MarkerSize', 3, 'DisplayName', 'kz ADC');
-
+plot(t_adc, ktraj_adc(3, :), 'ko', 'MarkerSize', 2, 'MarkerFaceColor', 'r', ...
+    'DisplayName', 'kz ADC');
 if adc_len_total >= proj_plot * N_adc
     fid_idx = (proj_plot-1)*N_adc + 1 : proj_plot*N_adc;
     plot(t_adc(fid_idx), abs(data_unsorted(fid_idx, 1, proj_plot)) * 1e5, ...
@@ -161,6 +166,21 @@ if adc_len_total >= proj_plot * N_adc
 end
 xlabel('Time [s]'); ylabel('k [1/m] / arb.');
 title('TPI k-space trajectory vs. ADC windows');
+legend('Location', 'best'); grid on;
+
+TR_est = t_ktraj(2) - 0; % or read TR from definitions/estimate from RF spacing
+tr_win = t_ktraj <= (min(t_excitation(2), t_ktraj(end)));  % first TR only
+adc_win = t_adc <= min(t_excitation(2), t_adc(end));
+
+figure('Name', 'TPI Trajectory Sanity Check (single TR)');
+hold on;
+plot(t_ktraj(tr_win), ktraj(1, tr_win), 'r', 'DisplayName', 'kx');
+plot(t_ktraj(tr_win), ktraj(2, tr_win), 'g', 'DisplayName', 'ky');
+plot(t_ktraj(tr_win), ktraj(3, tr_win), 'b', 'DisplayName', 'kz');
+plot(t_adc(adc_win), ktraj_adc(3, adc_win), 'ko', 'MarkerSize', 4, ...
+    'MarkerFaceColor', 'y', 'DisplayName', 'kz ADC samples');
+xlabel('Time [s]'); ylabel('k [1/m]');
+title('TPI trajectory vs. ADC windows — single TR');
 legend('Location', 'best'); grid on;
 
 %% ---- Section 7: Data Handling ----
@@ -187,16 +207,18 @@ fprintf('  data shape       = [%s]  [N_adc, N_total, navg]\n', num2str(size(data
 kcoord = reshape(ktraj_adc, 3, N_adc, N_total);
 fprintf('  kcoord shape     = [%s]  [3, N_adc, N_total]\n', num2str(size(kcoord)));
 
-% 7.4 Normalize k-space to the NUFFT convention [-0.5, +0.5]
-%   k_norm = k [1/m] / (2*kmax [1/m])
+% ---- 7.4 Normalize k-space to nufft_3d's convention (cycles/FOV, Nyquist = ±Nx/2) ----
+% nufft_3d.m's own docstring: "trajectory units are phase cycles/fov,
+% Nyquist distance is 1 unit" -> om = k [1/m] * fov [m] = k/(2*kmax)*Nx
 % Uses the stored kmax (not kmax_meas), since the measured peak slightly
 % overshoots due to gradient-raster discretization.
-kcoord_norm = kcoord / (2 * kmax);   % [3, N_adc, N_total], dimensionless
+kcoord_norm = kcoord / (2 * kmax) * Nx;   % = kcoord * fov, cycles/FOV convention
 
 k_norm_max = max(abs(kcoord_norm(:)));
-fprintf('  |k_norm| max     = %.4f  (should be <= 0.5)\n', k_norm_max);
-if k_norm_max > 0.501
-    warning('Normalized k-space exceeds 0.5 - check kmax definition in compiler.');
+k_norm_limit = Nx / 2;  
+fprintf('  |k_norm| max     = %.4f  (should be <= %.1f = Nx/2)\n', k_norm_max, k_norm_limit);
+if k_norm_max > 1.001 * k_norm_limit
+    warning('Normalized k-space exceeds Nx/2 (%.1f) - check kmax/Nx definitions in compiler.', k_norm_limit);
 end
 
 % 7.5 Optional k-space averaging (before NUFFT, for SNR)
@@ -246,7 +268,7 @@ kspace_grid = zeros(kspace_size, kspace_size, kspace_size, navg_recon);
 
 % 8.2 Build the NUFFT operator once (trajectory is identical per average)
 fprintf('Building NUFFT operator ... ');
-nufft_obj = nufft_3d(kcoord_flat, kspace_size, 'gpu', 0, 'u', 4, 'J', 6, 'radial', 1);
+nufft_obj = nufft_3d(kcoord_flat, kspace_size, 'gpu', 0, 'u', 4, 'J', 6, 'radial', 0);
 fprintf('done\n');
 
 maxit  = 1;   % 1 = density-compensated gridding; >1 = conjugate-gradient iterations
@@ -287,11 +309,14 @@ fprintf('Reconstruction complete.\n');
 N = kspace_size;
 
 % 9.1 Regridded k-space, central slice (log magnitude)
-kspace_slice = squeeze(kspace_grid(:, N/2+1, :, 1));
+% kspace_slice = squeeze(kspace_grid(:, N/2+1, :, 1));
+kspace_slice = squeeze(kspace_grid(N/2+1, :, :, 1));
+% kspace_slice = squeeze(kspace_grid(:, :, N/2+1, 1));
 
 figure('Name', 'Regridded k-space (central slice)');
 imagesc(log10(abs(kspace_slice)));
-clim([-12 -5]); colorbar; axis image;
+% clim([-12 -5]);
+cb=colorbar; cb.Label.String = 'log(signal) [a.u.]'; axis image;
 title(sprintf('TPI regridded k-space - %d projections, p=%.2f', N_total, p));
 xlabel('kx'); ylabel('kz');
 
@@ -308,4 +333,3 @@ subplot(1,3,3); imagesc(squeeze(abs(img_avg(N/2+1,:,:))));
 axis image off; colorbar; title('Sagittal (x = centre)');
 
 sgtitle(sprintf('TPI Na - FOV=%.0fmm, Nx=%d, p=%.2f', fov*1e3, Nx, p));
-
