@@ -31,6 +31,8 @@ trajectory of Boada et al. (1997).
 | MATLAB App Designer (`uifigure`, `uigridlayout`, etc.) | Required for `TPI_UI.m`; ships with MATLAB, no separate install |
 
 ## Usage
+>  **Note:** If you need help setting the compiler up or have any kind of questions
+>  plese contact me.
 
 1. Launch `TPI_UI` in MATLAB with Pulseq on the path.
 2. Set scanner, nucleus, geometry (FOV, matrix, TR), and TPI trajectory
@@ -46,6 +48,9 @@ trajectory of Boada et al. (1997).
 > ⚠️ **Safety notice:** Always verify SAR, gradient amplitude, slew rate, and
 > duty cycle limits on your specific scanner before executing any sequence on
 > hardware. This code is provided "as is" without warranty of any kind.
+
+>  **Note:** If you need help setting the compiler up or have any kind of questions
+>  plese contact me.
 
 ## Running without the GUI
 
@@ -93,7 +98,7 @@ Guided Reconstruction (AGR). In: Proceedings of the 2026 ISMRM Workshop
 on Beyond Protons: Challenges and Advances in X-Nuclei MR, Barcelona,
 Spain.
 
-> **Note:** the undersampling factors published in the abstract will not apply to the current compiler version.
+> **Note:** The undersampling factors published in the abstract will not apply to the current compiler version.
 
 ## License
 
