@@ -5,6 +5,8 @@ Projection Imaging (TPI), targeting sodium (23Na) MRI with support for
 proton (1H) acquisitions. Implements the constant-polar-angle cone
 trajectory of Boada et al. (1997).
 
+>  **Note:** The compiler is built for pulseq version 1.5.x
+
 ## Repository contents
 
 - `TPI_UI.m` — interactive GUI: parameter entry, one-click compile,
@@ -48,9 +50,6 @@ trajectory of Boada et al. (1997).
 > ⚠️ **Safety notice:** Always verify SAR, gradient amplitude, slew rate, and
 > duty cycle limits on your specific scanner before executing any sequence on
 > hardware. This code is provided "as is" without warranty of any kind.
-
->  **Note:** If you need help setting the compiler up or have any kind of questions
->  plese contact me.
 
 ## Running without the GUI
 
